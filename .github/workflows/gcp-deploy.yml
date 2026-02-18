@@ -1,0 +1,62 @@
+# name: Deploy (VM + Docker Compose)
+
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       branch:
+#         description: "Branch to deploy (of this repo)"
+#         required: true
+#         default: "main"
+
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       # 1) Récupérer le repo "infra" (celui où vit ce workflow + compose/proxy/etc.)
+#       - name: Checkout Infra Repo
+#         uses: actions/checkout@v4
+#         with:
+#           ref: ${{ github.event.inputs.branch }}
+
+#       # 2) Récupérer l'app (ton repo application)
+#       - name: Checkout Application Repo
+#         uses: actions/checkout@v4
+#         with:
+#           repository: AxeRaoRt/housing_mlops_projects
+#           # token: ${{ secrets.GH_PAT }}         
+#           path: app-repo
+
+#       # 3) Optionnel: afficher l'arborescence pour debug
+#       - name: Show workspace tree
+#         run: |
+#           ls -la
+#           echo "----- app-repo -----"
+#           ls -la app-repo
+
+#       # 4) Préparer un dossier "deploy_bundle" contenant tout ce qu'on va envoyer à la VM
+#       #    -> tu peux adapter selon où sont tes fichiers docker-compose / env / nginx/caddy.
+#       - name: Prepare deploy bundle
+#         run: |
+#           rm -rf deploy_bundle
+#           mkdir -p deploy_bundle
+
+#           # Copie ton docker-compose (depuis le repo infra par ex)
+#           # Adapte les chemins si ton compose est ailleurs.
+#           cp docker-compose.yml deploy_bundle/
+          
+#           # Si tu as un .env de prod (recommandé), copie-le aussi
+#           # cp .env.prod deploy_bundle/.env
+
+#           # Copie l'app repo dans le bundle (si tu builds sur la VM)
+#           # Si tu préfères build/push dans un registry, on peut faire autrement.
+#           cp -R app-repo deploy_bundle/app-repo
+
+#           # Optionnel : fichiers de config (nginx/caddy/prometheus/grafana)
+#           # Exemple si tu as un dossier ./ops/
+#           if [ -d "ops" ]; then
+#             cp -R ops deploy_bundle/ops
+#           fi
+
+#       # 5) Uploader le bundle sur la VM par SCP
+#       - name: Copy bundle to
