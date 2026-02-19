@@ -1,8 +1,8 @@
 name: Deploy to GCP
 
 on:
-  repository_dispatch:
-    types: [new-image]
+  # repository_dispatch:
+  #   types: [new-image]
   workflow_dispatch:
     inputs:
       image_tag:
