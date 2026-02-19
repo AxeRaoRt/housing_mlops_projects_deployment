@@ -1,0 +1,87 @@
+services:
+  # ---------- MLflow Tracking Server ----------
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.9.0
+    container_name: fraud-mlflow
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri sqlite:///mlflow/mlflow.db
+      --allowed-hosts '*'
+      --default-artifact-root /mlflow/artifacts
+    ports:
+      - "5001:5000"
+    volumes:
+      - mlflow_data:/mlflow
+
+  # ---------- FastAPI Inference ----------
+  api:
+    image: ${GAR_REGION}-docker.pkg.dev/${PROJECT_ID}/${GAR_REPOSITORY}/fraud-api:${VERSION}
+    container_name: fraud-api
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MLFLOW_MODEL_NAME=fraud-model
+      - MODEL_VERSION=v1
+      - PRED_THRESHOLD=0.01
+      - LOG_LEVEL=INFO
+    ports:
+      - "8001:8001"
+    depends_on:
+      - mlflow
+    volumes:
+      - mlflow_data:/mlflow
+
+  # --- Tourne 1 fois puis s'arrête ---
+  train:
+    image: ${GAR_REGION}-docker.pkg.dev/${PROJECT_ID}/${GAR_REPOSITORY}/fraud-train:${VERSION}
+    depends_on:
+      - mlflow
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    volumes:
+      - mlflow_data:/mlflow
+      # ⚠️ sur VM, adapte ces chemins si tu veux les garder
+      - ./data:/app/data
+      - ./models:/app/models
+    profiles: ["train"]  # Ne démarre pas par défaut
+
+  prometheus:
+    image: prom/prometheus:v2.54.0
+    container_name: fraud-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9092:9090"
+    depends_on:
+      - api
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: fraud-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    ports:
+      - "3002:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+
+  # ---------- Streamlit UI ----------
+  ui:
+    image: ${GAR_REGION}-docker.pkg.dev/${PROJECT_ID}/${GAR_REPOSITORY}/fraud-ui:${VERSION}
+    container_name: fraud-ui
+    environment:
+      - API_URL=http://api:8001
+      - MLFLOW_URL=http://mlflow:5000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+
+volumes:
+  grafana_data:
+  mlflow_data:

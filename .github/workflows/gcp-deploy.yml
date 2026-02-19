@@ -1,62 +1,70 @@
-# name: Deploy (VM + Docker Compose)
+name: Deploy to GCP
 
-# on:
-#   workflow_dispatch:
-#     inputs:
-#       branch:
-#         description: "Branch to deploy (of this repo)"
-#         required: true
-#         default: "main"
+on:
+  repository_dispatch:
+    types: [new-image]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Tag de l'image à déployer"
+        required: false
+        default: "latest"
 
-# jobs:
-#   deploy:
-#     runs-on: ubuntu-latest
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
 
-#     steps:
-#       # 1) Récupérer le repo "infra" (celui où vit ce workflow + compose/proxy/etc.)
-#       - name: Checkout Infra Repo
-#         uses: actions/checkout@v4
-#         with:
-#           ref: ${{ github.event.inputs.branch }}
+    steps:
+      - uses: actions/checkout@v4
 
-#       # 2) Récupérer l'app (ton repo application)
-#       - name: Checkout Application Repo
-#         uses: actions/checkout@v4
-#         with:
-#           repository: AxeRaoRt/housing_mlops_projects
-#           # token: ${{ secrets.GH_PAT }}         
-#           path: app-repo
+      # - name: Set image tag
+      #   id: vars
+      #   run: |
+      #     if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+      #       TAG="${{ github.event.client_payload.tag }}"
+      #     else
+      #       TAG="${{ github.event.inputs.image_tag || 'latest' }}"
+      #     fi
+      #     echo "image_tag=${TAG:-latest}" >> $GITHUB_OUTPUT
+      #     echo "Deploying image tag: ${TAG:-latest}"
 
-#       # 3) Optionnel: afficher l'arborescence pour debug
-#       - name: Show workspace tree
-#         run: |
-#           ls -la
-#           echo "----- app-repo -----"
-#           ls -la app-repo
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-#       # 4) Préparer un dossier "deploy_bundle" contenant tout ce qu'on va envoyer à la VM
-#       #    -> tu peux adapter selon où sont tes fichiers docker-compose / env / nginx/caddy.
-#       - name: Prepare deploy bundle
-#         run: |
-#           rm -rf deploy_bundle
-#           mkdir -p deploy_bundle
+      - name: Setup gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
 
-#           # Copie ton docker-compose (depuis le repo infra par ex)
-#           # Adapte les chemins si ton compose est ailleurs.
-#           cp docker-compose.yml deploy_bundle/
-          
-#           # Si tu as un .env de prod (recommandé), copie-le aussi
-#           # cp .env.prod deploy_bundle/.env
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
 
-#           # Copie l'app repo dans le bundle (si tu builds sur la VM)
-#           # Si tu préfères build/push dans un registry, on peut faire autrement.
-#           cp -R app-repo deploy_bundle/app-repo
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
 
-#           # Optionnel : fichiers de config (nginx/caddy/prometheus/grafana)
-#           # Exemple si tu as un dossier ./ops/
-#           if [ -d "ops" ]; then
-#             cp -R ops deploy_bundle/ops
-#           fi
+      - name: Terraform Plan
+        working-directory: ./terraform
+        run: terraform plan
+        env:
+          TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+          # TF_VAR_app_image_tag: ${{ steps.vars.outputs.image_tag }}
 
-#       # 5) Uploader le bundle sur la VM par SCP
-#       - name: Copy bundle to
+      - name: Terraform Apply
+        working-directory: ./terraform
+        run: terraform apply -auto-approve
+        env:
+          TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+          # TF_VAR_app_image_tag: ${{ steps.vars.outputs.image_tag }}
+
+      - name: Force redeploy on VM
+        run: |
+          gcloud compute instances add-metadata app-server-vm \
+            --zone=europe-west1-b \
+            --metadata=deploy-timestamp=$(date +%s)
+
+          gcloud compute ssh ubuntu@app-server-vm \
+            --zone=europe-west1-b \
+            --command="sudo bash /var/run/google_metadata_script_runner/startup-script" \
+            --ssh-key-expire-after=60s \
+            -- -o StrictHostKeyChecking=no

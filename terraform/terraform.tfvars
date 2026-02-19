@@ -1,0 +1,5 @@
+project_id          = "mlops-projects-487817"
+region              = "europe-west1"
+zone                = "europe-west1-b"
+app_image_tag       = "latest"
+repository         = "mlops-depots"
