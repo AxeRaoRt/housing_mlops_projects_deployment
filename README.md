@@ -295,6 +295,12 @@ cd terraform/
 terraform destroy
 ```
 
+Vous pouvez le tester aux adresse suivantes : 
+- Streamlit : http://35.195.224.172:8501/
+- MLflow : http://35.195.224.172:5001/
+- Grafana : http://35.195.224.172:3002/
+- Prometheus : http://35.195.224.172:9092/
+
 > **Attention** : cela supprime la VM, le réseau, les firewalls et le service account.
 
 ---
