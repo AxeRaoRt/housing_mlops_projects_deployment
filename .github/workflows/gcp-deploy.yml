@@ -57,18 +57,18 @@ jobs:
           TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
           # TF_VAR_app_image_tag: ${{ steps.vars.outputs.image_tag }}
 
-      - name: Force redeploy on VM
-        run: |
-          gcloud compute instances add-metadata app-server-vm \
-            --zone=europe-west1-b \
-            --metadata=deploy-timestamp=$(date +%s)
+      # - name: Force redeploy on VM
+      #   run: |
+      #     gcloud compute instances add-metadata app-server-vm \
+      #       --zone=europe-west1-b \
+      #       --metadata=deploy-timestamp=$(date +%s)
 
-          # 2. Petite pause pour laisser le temps au réseau/SSH de se stabiliser
-          echo "Waiting for VM to be ready..."
-          sleep 20
+      #     # 2. Petite pause pour laisser le temps au réseau/SSH de se stabiliser
+      #     echo "Waiting for VM to be ready..."
+      #     sleep 20
 
-          gcloud compute ssh ubuntu@app-server-vm \
-            --zone=europe-west1-b \
-            --command="sudo bash /var/run/google_metadata_script_runner/startup-script" \
-            --ssh-key-expire-after=60s \
-            -- -o StrictHostKeyChecking=no
+      #     gcloud compute ssh ubuntu@app-server-vm \
+      #       --zone=europe-west1-b \
+      #       --command="sudo google_metadata_script_runner --script-type startup" \
+      #       --ssh-key-expire-after=60s \
+      #       -- -o StrictHostKeyChecking=no
