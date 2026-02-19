@@ -63,6 +63,10 @@ jobs:
             --zone=europe-west1-b \
             --metadata=deploy-timestamp=$(date +%s)
 
+          # 2. Petite pause pour laisser le temps au réseau/SSH de se stabiliser
+          echo "Waiting for VM to be ready..."
+          sleep 20
+
           gcloud compute ssh ubuntu@app-server-vm \
             --zone=europe-west1-b \
             --command="sudo bash /var/run/google_metadata_script_runner/startup-script" \
